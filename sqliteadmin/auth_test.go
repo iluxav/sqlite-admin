@@ -25,6 +25,23 @@ func TestClientAddressAndSecureCookieBehindAProxy(t *testing.T) {
 	if ip := proxied.clientIP(r); ip != "10.0.0.1" {
 		t.Errorf("behind a proxy: client address %q, want the last forwarded one, which the proxy appended", ip)
 	}
+	// A client's own header lines come before the proxy's; the proxy's entry may carry a port.
+	forged := httptest.NewRequest(http.MethodPost, "/login", nil)
+	forged.RemoteAddr = "127.0.0.1:4321"
+	forged.Header.Add("X-Forwarded-For", "203.0.113.9")
+	forged.Header.Add("X-Forwarded-For", "203.0.113.10, [2001:db8::7]:443")
+	if ip := proxied.clientIP(forged); ip != "2001:db8::7" {
+		t.Errorf("two forwarded lines: %q, want the proxy's entry in canonical form", ip)
+	}
+	forged.Header.Set("X-Forwarded-For", "not an address")
+	if ip := proxied.clientIP(forged); ip != "127.0.0.1" {
+		t.Errorf("a forwarded entry that is not an address: %q, want the connection's", ip)
+	}
+	forged.Header.Add("X-Forwarded-Proto", "https")
+	forged.Header.Add("X-Forwarded-Proto", "http")
+	if proxied.secure(forged) {
+		t.Error("a client's https line before the proxy's http counted as https")
+	}
 	chain := &Admin{cfg: Config{ClientAddress: func(r *http.Request) string { return r.Header.Get("CF-Connecting-IP") }}}
 	r.Header.Set("CF-Connecting-IP", "198.51.100.7")
 	if ip := chain.clientIP(r); ip != "198.51.100.7" {

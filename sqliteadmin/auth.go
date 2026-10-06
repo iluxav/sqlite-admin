@@ -154,11 +154,14 @@ func (a *Admin) clientIP(r *http.Request) string {
 			return ip
 		}
 	} else if a.cfg.BehindProxy {
-		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-			if i := strings.LastIndex(fwd, ","); i >= 0 {
-				fwd = fwd[i+1:]
+		// Every header line, since a client may send its own lines before the
+		// proxy adds to the header; only the very last entry is the proxy's.
+		if lines := r.Header.Values("X-Forwarded-For"); len(lines) > 0 {
+			last := lines[len(lines)-1]
+			if i := strings.LastIndex(last, ","); i >= 0 {
+				last = last[i+1:]
 			}
-			if ip := strings.TrimSpace(fwd); ip != "" {
+			if ip := parseAddress(last); ip != "" {
 				return ip
 			}
 		}
@@ -170,10 +173,39 @@ func (a *Admin) clientIP(r *http.Request) string {
 	return host
 }
 
+// parseAddress is the canonical form of an IP address, with or without a
+// port or brackets, or "" for anything that is not one.
+func parseAddress(s string) string {
+	s = strings.TrimSpace(s)
+	if host, _, err := net.SplitHostPort(s); err == nil {
+		s = host
+	}
+	s = strings.TrimSuffix(strings.TrimPrefix(s, "["), "]")
+	if ip := net.ParseIP(s); ip != nil {
+		return ip.String()
+	}
+	return ""
+}
+
 // secure says whether the browser reached the UI over HTTPS: directly, or
-// through a proxy that terminates TLS and says so in X-Forwarded-Proto.
+// through a proxy that terminates TLS and says so in X-Forwarded-Proto (the
+// last value, as with the address).
 func (a *Admin) secure(r *http.Request) bool {
-	return r.TLS != nil || (a.cfg.BehindProxy && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https"))
+	if r.TLS != nil {
+		return true
+	}
+	if !a.cfg.BehindProxy {
+		return false
+	}
+	lines := r.Header.Values("X-Forwarded-Proto")
+	if len(lines) == 0 {
+		return false
+	}
+	last := lines[len(lines)-1]
+	if i := strings.LastIndex(last, ","); i >= 0 {
+		last = last[i+1:]
+	}
+	return strings.EqualFold(strings.TrimSpace(last), "https")
 }
 
 // checkCredentials compares in constant time; hashing first hides lengths.
