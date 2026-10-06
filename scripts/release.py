@@ -62,6 +62,14 @@ def gh(*args):
     return subprocess.check_output(["gh", *args], text=True)
 
 
+def find_release(version, repo):
+    # The tag endpoint can return 404 for drafts. Authenticated listing includes
+    # drafts and exposes the release ID needed to publish them.
+    pages = json.loads(gh("api", f"repos/{repo}/releases", "--paginate", "--slurp"))
+    return next((release for page in pages for release in page
+                 if release["tag_name"] == version), None)
+
+
 def publish(version, directory, repo):
     validate(version, repo)
     files = archives(version, directory) + [directory / "install.sh", directory / "checksums.txt"]
@@ -69,9 +77,7 @@ def publish(version, directory, repo):
         if not path.is_file():
             raise ValueError(f"missing release file: {path}")
     # Fail on API/network errors. Listing includes drafts with the workflow token.
-    pages = json.loads(gh("api", f"repos/{repo}/releases", "--paginate", "--slurp"))
-    existing = next((release for page in pages for release in page
-                     if release["tag_name"] == version), None)
+    existing = find_release(version, repo)
     if existing and not existing["draft"]:
         raise ValueError(f"{version} is already published; published assets are not overwritten. Create a new version tag.")
     if not existing:
@@ -89,7 +95,9 @@ def publish(version, directory, repo):
             notes_path.write_text(notes)
             gh("release", "create", version, "--repo", repo, "--verify-tag", "--draft",
                "--title", version, "--notes-file", str(notes_path))
-        existing = json.loads(gh("api", f"repos/{repo}/releases/tags/{version}"))
+        existing = find_release(version, repo)
+        if not existing or not existing["draft"]:
+            raise ValueError("created draft release is not available; retry the workflow")
     if os.environ.get("RELEASE_COMMIT"):
         # Detect a tag moved while the matrix was running; release exactly what
         # was tested. GitHub's commit endpoint peels annotated tags as well.

@@ -24,15 +24,20 @@ class ReleaseTests(unittest.TestCase):
             (self.dist / f"sqliteadmin_{self.version}_{system}_{arch}.tar.gz").write_bytes(b"archive fixture")
         release.prepare(self.version, self.dist, self.repo)
         self.calls = []
+        self.created = False
         self.addCleanup(patch.stopall)
         patch.dict(os.environ, {"RELEASE_COMMIT": "tested-commit"}).start()
 
     def fake_gh(self, *args):
         self.calls.append(args)
         if "--paginate" in args:
+            if self.created:
+                return json.dumps([[{"id": 123, "tag_name": self.version, "draft": True}]])
             return "[[]]"
+        if args[:2] == ("release", "create"):
+            self.created = True
         if args[0] == "api" and "/releases/tags/" in args[1]:
-            return json.dumps({"id": 123, "tag_name": self.version, "draft": True})
+            raise subprocess.CalledProcessError(1, ["gh", *args], stderr="Not Found (HTTP 404)")
         if args[0] == "api" and "/commits/" in args[1]:
             return json.dumps({"sha": "tested-commit"})
         return ""
@@ -60,6 +65,15 @@ class ReleaseTests(unittest.TestCase):
         self.assertLess(upload, len(self.calls) - 1)
         self.assertIn("draft=false", self.calls[-1])
         self.assertIn("make_latest=legacy", self.calls[-1])
+
+    def test_missing_created_draft_blocks_upload(self):
+        def missing(*args):
+            if "--paginate" in args:
+                return "[[]]"
+            return self.fake_gh(*args)
+        with patch.object(release, "gh", missing), self.assertRaisesRegex(ValueError, "draft release is not available"):
+            release.publish(self.version, self.dist, self.repo)
+        self.assertFalse(any(call[:2] == ("release", "upload") for call in self.calls))
 
     def test_upload_failure_leaves_draft(self):
         def fail_upload(*args):
