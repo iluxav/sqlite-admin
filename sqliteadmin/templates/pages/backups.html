@@ -1,0 +1,73 @@
+{{define "content"}}
+{{template "backup-panel" .}}
+{{end}}
+
+{{define "backup-panel"}}{{$d := .Body}}
+<div id="backup-panel" class="backup-workspace">
+  <header class="backup-page-head">
+    <div><div class="page-title"><span class="title-icon">{{template "icon" "database"}}</span><h1>Backups</h1></div><p class="page-subtitle">Manage snapshots and automatic backups.</p></div>
+    <form class="backup-create" hx-post="/backups/create" hx-target="#backup-panel" hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#creating-backup">
+      {{if $d.S3}}<select name="destination" aria-label="Backup destination"{{if .ReadOnly}} disabled{{end}}><option value="local">Local storage</option><option value="s3">S3 storage</option></select>{{else}}<input type="hidden" name="destination" value="local">{{end}}
+      <button type="submit" class="btn primary"{{if .ReadOnly}} disabled{{end}}>{{template "icon" "plus"}}Back up now</button>
+      <span class="htmx-indicator backup-progress" id="creating-backup" role="status">Creating snapshot…</span>
+    </form>
+  </header>
+  {{with $d.Message}}<div class="flash ok" role="status"><pre>{{.}}</pre><button type="button" class="x" data-dismiss aria-label="Dismiss">×</button></div>{{end}}
+  {{with $d.ConfigError}}<div class="flash warn" role="alert"><pre>{{.}}</pre></div>{{end}}
+  {{with $d.ListError}}<div class="flash error" role="alert"><pre>{{.}}</pre></div>{{end}}
+  {{if .ReadOnly}}<p class="note">Read-only mode. You can download snapshots; creating backups, scheduling and restoring are disabled.</p>{{end}}
+  <div class="backup-layout">
+    <div class="backup-main">
+      <section class="backup-history" aria-labelledby="snapshots-heading">
+        <div class="backup-section-head"><h2 id="snapshots-heading">Saved snapshots <span class="backup-count">{{len $d.Entries}}</span></h2><button type="button" class="btn small ghost" hx-get="/backups" hx-target="#backup-panel" hx-swap="outerHTML" hx-disabled-elt="this" title="Refresh snapshots">{{template "icon" "refresh"}}Refresh</button></div>
+        {{if $d.Entries}}
+        <div class="table-scroll"><table class="data backup-list"><thead><tr><th scope="col">Snapshot</th><th scope="col">Storage</th><th scope="col">Size</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+          {{range $d.Entries}}<tr>
+            <td class="backup-snapshot" title="{{.Name}}"><strong>{{backupKind .Name}}</strong><span>{{.Created.UTC.Format "02 Jan 2006, 15:04:05 UTC"}}</span><small class="backup-mobile-source">{{if eq .Source "s3"}}S3 storage{{else}}Local storage{{end}}</small></td>
+            <td><span class="backup-source">{{if eq .Source "s3"}}S3{{else}}Local{{end}}</span></td>
+            <td class="backup-size">{{bytes .Size}}</td>
+            <td class="actions"><div class="backup-row-actions"><a class="icon" href="{{backupURL "download" .Source .Name}}" title="Download {{.Name}}" aria-label="Download {{.Name}}">{{template "icon" "download"}}</a>{{if not $.ReadOnly}}<button type="button" class="btn small ghost" hx-get="{{backupURL "restore" .Source .Name}}" hx-target="#dialog" aria-label="Restore {{.Name}}">Restore…</button>{{end}}</div></td>
+          </tr>{{end}}
+        </tbody></table></div>
+        <p class="backup-footnote">Snapshots contain committed data. Keep them as long as you need.</p>
+        {{else}}
+        <div class="backup-empty"><span class="backup-empty-icon">{{template "icon" "database"}}</span><h3>No snapshots yet</h3><p>{{if $.ReadOnly}}Saved snapshots will appear here when they are available.{{else}}Use <strong>Back up now</strong> to save a complete copy of your database.{{end}}</p></div>
+        {{end}}
+      </section>
+      {{if not .ReadOnly}}
+      <details class="backup-upload">
+        <summary><span class="backup-upload-icon">{{template "icon" "upload"}}</span><span><strong>Restore from a file</strong><span>Already have a backup? Bring it from your computer.</span></span>{{template "icon" "chevron-right"}}</summary>
+        <form hx-post="/backups/upload" hx-encoding="multipart/form-data" hx-target="#dialog" hx-disabled-elt="find button" hx-indicator="#checking-backup">
+          <label class="backup-file" for="backup-file">SQLite backup <span class="muted">Up to {{bytes $d.MaxUpload}}</span></label><input id="backup-file" type="file" name="backup" accept=".db,.sqlite,.sqlite3,application/vnd.sqlite3" required>
+          <p class="backup-footnote">The file is checked first. You’ll confirm before anything is replaced.</p>
+          <div class="backup-upload-actions"><button type="submit" class="btn">Check backup &amp; continue</button><span class="htmx-indicator" id="checking-backup" role="status">Checking backup…</span></div>
+        </form>
+      </details>
+      {{end}}
+    </div>
+    <aside class="backup-aside" aria-label="Backup settings">
+      <section class="backup-schedule" aria-labelledby="schedule-heading">
+        <form data-backup-schedule hx-post="/backups/schedule" hx-target="#backup-panel" hx-swap="outerHTML" hx-disabled-elt="find button">
+          <div class="backup-section-head"><h2 id="schedule-heading">Automatic backups</h2><label class="backup-switch"><input type="checkbox" role="switch" aria-label="Enable automatic backups" name="enabled" value="1"{{if $d.Schedule.Enabled}} checked{{end}}{{if .ReadOnly}} disabled{{end}}><span aria-hidden="true"></span></label></div>
+          <p class="backup-schedule-description">Create snapshots on a regular schedule.</p>
+          <fieldset{{if .ReadOnly}} disabled{{end}}>
+            <label class="field" data-backup-frequency hidden>Repeat<select aria-label="Backup frequency"><option value="60">Every hour</option><option value="1440">Every day</option><option value="10080">Every week</option><option value="custom">Custom interval</option></select></label>
+            <label class="field" data-backup-interval>Interval in minutes<input type="number" name="minutes" min="1" max="525600" required value="{{$d.Schedule.Minutes}}"></label>
+            {{if or $d.S3 (eq $d.Schedule.Destination "s3")}}<label class="field">Save to<select name="destination" aria-label="Scheduled backup destination"><option value="local"{{if eq $d.Schedule.Destination "local"}} selected{{end}}>Local storage</option>{{if $d.S3}}<option value="s3"{{if eq $d.Schedule.Destination "s3"}} selected{{end}}>S3 storage</option>{{else}}<option value="s3" selected>S3 (not configured)</option>{{end}}</select></label>{{else}}<input type="hidden" name="destination" value="local"><div class="backup-schedule-destination">{{template "icon" "database"}}<span>Saves to local storage</span></div>{{end}}
+            <button type="submit" class="btn block"{{if .ReadOnly}} disabled{{end}}>Save schedule</button>
+          </fieldset>
+        </form>
+        <dl class="backup-run-times"><div><dt>Next backup</dt><dd>{{if $d.Schedule.Enabled}}{{backupTime $d.Schedule.NextRun}}{{else}}Not scheduled{{end}}</dd></div>{{if not $d.Schedule.LastSuccess.IsZero}}<div><dt>Last successful run</dt><dd>{{backupTime $d.Schedule.LastSuccess}}</dd></div>{{end}}</dl>
+        {{with $d.Schedule.LastError}}<p class="backup-error" role="alert">Last run: {{.}}</p>{{end}}
+        <p class="backup-footnote">Runs while the server is running. Your schedule is saved across restarts.</p>
+      </section>
+      <section class="backup-storage" aria-labelledby="storage-heading">
+        <h2 id="storage-heading">Storage</h2>
+        <div class="backup-storage-heading">{{template "icon" "database"}}<strong>Local storage</strong><span class="backup-storage-state">Available</span></div>
+        <details class="backup-location"><summary>View folder</summary><code>{{$d.LocalDir}}</code></details>
+        {{if $d.S3}}<div class="backup-storage-heading">{{template "icon" "cloud"}}<strong>S3 storage</strong><span class="backup-storage-state">Configured</span></div><details class="backup-location"><summary>View destination</summary><code>{{$d.Remote}}</code></details>{{else}}<p class="backup-footnote">S3 storage appears here when configured.</p>{{end}}
+      </section>
+    </aside>
+  </div>
+</div>
+{{end}}

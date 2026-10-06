@@ -1,0 +1,24 @@
+{{define "content"}}{{$d := .Body}}
+<div class="page-head"><h1>SQL editor</h1></div>
+<div class="sql-layout">
+  <aside class="snip-panel">
+    <h4>Snippets</h4>
+    {{template "snippets" (snippetsData $d.Snippets $.ReadOnly)}}
+  </aside>
+  <section class="sql-main">
+    <form id="sql-form" hx-post="/sql/run" hx-target="#results" hx-swap="outerHTML">
+      <textarea name="sql" id="sql-input" rows="10" spellcheck="false" autofocus placeholder="SELECT * FROM …">{{$d.SQL}}</textarea>
+      <div class="sql-actions">
+        <button type="submit" class="btn primary">Run <kbd>⌘/Ctrl ↵</kbd></button>
+        <span class="htmx-indicator muted">running…</span>
+        <span class="spacer"></span>
+        {{if not $.ReadOnly}}
+        <input name="name" placeholder="snippet name" value="{{$d.Name}}" spellcheck="false">
+        <button type="button" class="btn" hx-post="/sql/snippets" hx-target="#snippets" hx-swap="outerHTML">Save snippet</button>
+        {{end}}
+      </div>
+    </form>
+    {{if $d.Results}}{{template "sql-results" $d.Results}}{{else}}<div id="results"></div>{{end}}
+  </section>
+</div>
+{{end}}

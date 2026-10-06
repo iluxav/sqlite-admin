@@ -1,0 +1,134 @@
+{{define "content"}}{{$d := .Body}}{{$t := $d.Table}}
+<div class="page-head">
+  <h1>{{$t.Name}} <span class="tag">{{if $t.Virtual}}virtual {{end}}{{$t.Type}}</span></h1>
+  <nav class="tabs"><a href="{{tableURL $t.Name}}">Data</a><a class="active" href="{{tableURL $t.Name "/schema"}}">Schema</a></nav>
+</div>
+
+<section class="panel">
+<h2>Columns</h2>
+<div class="table-scroll"><table class="data compact">
+<thead><tr><th>#</th><th>Name</th><th>Type</th><th>Not null</th><th>Default</th><th>PK</th>{{if $d.CanAlter}}<th></th>{{end}}</tr></thead>
+<tbody>
+{{range $t.Columns}}<tr>
+  <td class="muted">{{.CID}}</td>
+  <td><code>{{.Name}}</code>{{if .Generated}} <span class="tag">generated</span>{{end}}</td>
+  <td>{{.Type}}</td>
+  <td>{{if .NotNull}}✓{{end}}</td>
+  <td>{{if .Default.Valid}}<code>{{.Default.String}}</code>{{end}}</td>
+  <td>{{if .PK}}{{.PK}}{{end}}</td>
+  {{if $d.CanAlter}}<td class="actions">
+    <details class="menu"><summary class="btn small">Edit</summary>
+      <div class="menu-body">
+        <form hx-post="/ddl/preview" hx-target="#dialog">
+          <input type="hidden" name="op" value="rename_column"><input type="hidden" name="table" value="{{$t.Name}}"><input type="hidden" name="column" value="{{.Name}}">
+          <label class="field">Rename to <input name="new_name" value="{{.Name}}" required spellcheck="false"></label>
+          <button type="submit" class="btn small">Preview rename</button>
+        </form>
+        <form hx-post="/ddl/preview" hx-target="#dialog">
+          <input type="hidden" name="op" value="alter_column"><input type="hidden" name="table" value="{{$t.Name}}"><input type="hidden" name="column" value="{{.Name}}">
+          <label class="field">Definition <span class="muted">type, constraints, default — rebuilds the table</span>
+            <textarea name="definition" rows="2" spellcheck="false">{{index $d.ColumnDefs .Name}}</textarea></label>
+          <button type="submit" class="btn small">Preview change</button>
+        </form>
+        <form hx-post="/ddl/preview" hx-target="#dialog">
+          <input type="hidden" name="op" value="drop_column"><input type="hidden" name="table" value="{{$t.Name}}"><input type="hidden" name="column" value="{{.Name}}">
+          <button type="submit" class="btn small danger">Drop column…</button>
+        </form>
+      </div>
+    </details>
+  </td>{{end}}
+</tr>{{end}}
+</tbody>
+</table></div>
+{{if $d.CanAlter}}
+<form class="inline-form" hx-post="/ddl/preview" hx-target="#dialog">
+  <input type="hidden" name="op" value="add_column"><input type="hidden" name="table" value="{{$t.Name}}">
+  <strong>Add column</strong>
+  <input name="name" placeholder="name" required spellcheck="false">
+  <input name="type" placeholder="type, e.g. TEXT" list="sqlite-types" spellcheck="false">
+  <label class="chk"><input type="checkbox" name="notnull" value="1"> NOT NULL</label>
+  <input name="default" placeholder="default, e.g. 0 or 'x'" spellcheck="false">
+  <button type="submit" class="btn small">Preview</button>
+</form>
+{{end}}
+</section>
+
+{{if eq $t.Type "table"}}
+<section class="panel">
+<h2>Indexes</h2>
+<div class="table-scroll"><table class="data compact">
+<thead><tr><th>Name</th><th>Columns</th><th>Unique</th><th>Origin</th><th></th></tr></thead>
+<tbody>
+{{range $d.Indexes}}<tr>
+  <td><code>{{.Name}}</code>{{if .Partial}} <span class="tag">partial</span>{{end}}</td>
+  <td>{{join .Columns ", "}}</td>
+  <td>{{if .Unique}}✓{{end}}</td>
+  <td class="muted">{{originName .Origin}}</td>
+  <td>{{if and $d.CanIndex (eq .Origin "c")}}<form hx-post="/ddl/preview" hx-target="#dialog"><input type="hidden" name="op" value="drop_index"><input type="hidden" name="name" value="{{.Name}}"><button type="submit" class="btn small danger">Drop…</button></form>{{end}}</td>
+</tr>{{else}}<tr><td colspan="5" class="empty">No indexes.</td></tr>{{end}}
+</tbody>
+</table></div>
+{{if $d.CanIndex}}
+<form class="inline-form" hx-post="/ddl/preview" hx-target="#dialog">
+  <input type="hidden" name="op" value="create_index"><input type="hidden" name="table" value="{{$t.Name}}">
+  <strong>New index</strong>
+  <input name="name" placeholder="name (optional)" spellcheck="false">
+  {{range $i := until 4}}<select name="col{{add $i 1}}"><option value="">{{if eq $i 0}}column…{{else}}+ column{{end}}</option>{{range $t.Columns}}<option value="{{.Name}}">{{.Name}}</option>{{end}}</select>{{end}}
+  <label class="chk"><input type="checkbox" name="unique" value="1"> UNIQUE</label>
+  <input name="where" placeholder="WHERE … (optional)" spellcheck="false">
+  <button type="submit" class="btn small">Preview</button>
+</form>
+{{end}}
+</section>
+
+<section class="panel">
+<h2>Foreign keys</h2>
+{{if $d.ForeignKeys}}<div class="table-scroll"><table class="data compact">
+<thead><tr><th>Columns</th><th>References</th><th>On update</th><th>On delete</th></tr></thead>
+<tbody>{{range $d.ForeignKeys}}<tr>
+  <td>{{join .From ", "}}</td>
+  <td><a href="{{tableURL .Table}}">{{.Table}}</a> ({{join .To ", "}})</td>
+  <td>{{.OnUpdate}}</td><td>{{.OnDelete}}</td>
+</tr>{{end}}</tbody>
+</table></div>{{else}}<p class="muted">No foreign keys.</p>{{end}}
+</section>
+
+<section class="panel">
+<h2>Triggers</h2>
+{{range $d.Triggers}}<div class="trigger">
+  <div class="trigger-head"><code>{{.Name}}</code>
+  {{if $d.CanAlter}}<form hx-post="/ddl/preview" hx-target="#dialog"><input type="hidden" name="op" value="drop_trigger"><input type="hidden" name="name" value="{{.Name}}"><button type="submit" class="btn small danger">Drop…</button></form>{{end}}</div>
+  <pre class="sql">{{.SQL}}</pre>
+</div>{{else}}<p class="muted">No triggers.</p>{{end}}
+</section>
+{{end}}
+
+<section class="panel">
+<h2>Definition</h2>
+<pre class="sql">{{$t.SQL}}</pre>
+</section>
+
+{{if not $.ReadOnly}}
+<section class="panel danger-zone">
+<h2>Danger zone</h2>
+{{if eq $t.Type "table"}}
+  {{if not $t.Virtual}}<form class="inline-form" hx-post="/ddl/preview" hx-target="#dialog">
+    <input type="hidden" name="op" value="rename_table"><input type="hidden" name="table" value="{{$t.Name}}">
+    <strong>Rename table</strong><input name="new_name" value="{{$t.Name}}" required spellcheck="false">
+    <button type="submit" class="btn small">Preview</button>
+  </form>{{end}}
+  <form class="inline-form" hx-post="/ddl/preview" hx-target="#dialog">
+    <input type="hidden" name="op" value="drop_table"><input type="hidden" name="name" value="{{$t.Name}}">
+    <strong>Drop table</strong><span class="muted">Deletes the table with all its rows, indexes and triggers.</span>
+    <button type="submit" class="btn small danger">Drop table…</button>
+  </form>
+{{else}}
+  <form class="inline-form" hx-post="/ddl/preview" hx-target="#dialog">
+    <input type="hidden" name="op" value="drop_view"><input type="hidden" name="name" value="{{$t.Name}}">
+    <strong>Drop view</strong><button type="submit" class="btn small danger">Drop view…</button>
+  </form>
+{{end}}
+</section>
+{{end}}
+{{template "type-list"}}
+{{end}}

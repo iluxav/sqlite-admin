@@ -1,0 +1,5 @@
+{{define "login"}}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in · sqliteadmin</title><link rel="stylesheet" href="/static/app.css?v=graphite"></head>
+<body class="login-body"><main class="login-card"><div class="brand"><span class="brand-mark">{{template "icon" "database"}}</span>sqlite<span>admin</span></div><h1>Open your workspace</h1><p class="page-subtitle">Sign in to explore and manage your database.</p>
+{{if .}}<div class="flash error" role="alert"><pre>{{.}}</pre></div>{{end}}
+<form method="post" action="/login"><label class="field">Username<input name="username" autocomplete="username" placeholder="Your username" required autofocus></label><label class="field">Password<input type="password" name="password" autocomplete="current-password" placeholder="Your password" required></label><button type="submit" class="btn primary block">Sign in</button></form><p class="login-note">{{template "icon" "lock"}} A private workspace for your SQLite database.</p></main></body></html>{{end}}

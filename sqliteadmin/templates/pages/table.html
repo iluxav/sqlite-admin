@@ -1,0 +1,45 @@
+{{define "content"}}{{$d := .Body}}{{$t := $d.Table}}
+<div class="table-workspace">
+  <div class="page-head">
+    <div class="page-title"><span class="title-icon">{{template "icon" "table"}}</span><h1>{{$t.Name}}</h1><span class="tag">{{if $t.Virtual}}virtual {{end}}{{$t.Type}}</span></div>
+    {{if $d.Editable}}<button type="button" class="btn primary" hx-get="{{tableURL $t.Name "/insert"}}" hx-target="#dialog">{{template "icon" "plus"}}Insert row</button>{{end}}
+  </div>
+  {{template "table-browser" .}}
+</div>
+<template id="grid-editor-template"><form class="cell-form" hx-target="closest td" hx-swap="outerHTML"><input type="hidden" name="key"><input type="hidden" name="col"><input type="hidden" name="cell_only" value="1"><input type="hidden" name="null"><textarea name="value" rows="1" wrap="off" spellcheck="false" autocomplete="off" aria-label="Edit cell value"></textarea></form></template>
+{{end}}
+
+{{define "table-browser"}}{{$d := .Body}}{{$t := $d.Table}}
+<div id="table-browser" class="table-browser">
+  <div class="table-tabs"><nav class="tabs" aria-label="Table view"><a class="active" href="{{tableURL $t.Name}}">{{template "icon" "table"}}Data</a><a href="{{tableURL $t.Name "/schema"}}">{{template "icon" "schema"}}Structure</a></nav><span class="table-meta">{{$d.Total}} {{plural $d.Total "row" "rows"}}<span class="meta-divider"></span>{{len $d.Cols}} columns</span></div>
+  <div class="toolbar">
+    <form class="filter" method="get" action="{{tableURL $t.Name}}" hx-get="{{tableURL $t.Name}}" hx-target="#table-browser" hx-swap="outerHTML" hx-push-url="true" hx-sync="#table-browser:replace">
+      {{if $d.Browse.Sort}}<input type="hidden" name="sort" value="{{$d.Browse.Sort}}">{{if $d.Browse.Desc}}<input type="hidden" name="dir" value="desc">{{end}}{{end}}
+      <label class="filter-input">{{template "icon" "filter"}}<input type="text" name="where" value="{{$d.Browse.Where}}" aria-label="SQL filter expression" placeholder="Filter rows with a SQL expression…" spellcheck="false" autocomplete="off"></label>
+      <button type="submit" class="btn small">Apply filter</button>
+      {{if $d.Browse.Where}}<a class="btn small ghost" href="{{tableURL $t.Name}}" hx-get="{{tableURL $t.Name}}" hx-target="#table-browser" hx-swap="outerHTML" hx-push-url="true" hx-sync="#table-browser:replace">Clear</a>{{end}}
+    </form>
+    <a class="icon refresh-grid" href="{{browseURL $t.Name $d.Browse}}" hx-get="{{browseURL $t.Name $d.Browse}}" hx-target="#table-browser" hx-swap="outerHTML" hx-sync="#table-browser:replace" title="Refresh table" aria-label="Refresh table">{{template "icon" "refresh"}}</a>
+  </div>
+  {{with $d.FilterErr}}<div class="flash error"><pre>{{.}}</pre></div>{{end}}
+  {{with $d.Note}}<p class="note">{{.}}</p>{{end}}
+  <div class="selection-bar"><span id="selected-column">No cell selected</span><span class="selection-value" id="selected-value">Select a cell to inspect its value</span><div id="grid-editor-actions" hidden><button type="button" class="btn small ghost" data-grid-null aria-pressed="false" title="Use a NULL value">NULL</button><button type="button" class="icon" data-grid-cancel title="Cancel edit (Esc)" aria-label="Cancel edit">{{template "icon" "close"}}</button><button type="button" class="icon apply-edit" data-grid-apply title="Stage edit (Enter)" aria-label="Stage edit">{{template "icon" "check"}}</button></div><button type="button" class="icon" id="edit-selected" data-grid-edit disabled title="Edit selected cell (Enter)" aria-label="Edit selected cell">{{template "icon" "edit"}}</button></div>
+  <div class="table-scroll grid-scroll">
+    <table class="data data-grid" role="grid" aria-label="{{$t.Name}} data" data-start="{{$d.From}}" data-database="{{.DBName}}" data-table="{{$t.Name}}">
+      <colgroup><col class="row-number-col">{{range $d.Cols}}<col{{if eq .Type "INTEGER"}} class="numeric-col"{{end}}>{{end}}</colgroup>
+      <thead><tr>
+        <th class="act" scope="col"><span class="row-number-heading">#</span></th>
+        {{range $d.Cols}}<th scope="col" data-column="{{.Name}}" aria-sort="{{if eq .Sorted "asc"}}ascending{{else if eq .Sorted "desc"}}descending{{else}}none{{end}}"{{if .Sorted}} class="sorted"{{end}}>
+          <a class="column-sort" href="{{.SortURL}}" hx-get="{{.SortURL}}" hx-target="#table-browser" hx-swap="outerHTML" hx-push-url="true" hx-sync="#table-browser:replace" title="Sort {{.Name}} {{if eq .Sorted "asc"}}descending{{else}}ascending{{end}}" aria-label="Sort {{.Name}} {{if eq .Sorted "asc"}}descending{{else}}ascending{{end}}">
+            <span class="column-heading"><span class="column-name">{{.Name}}{{if .PK}} <span class="pk" title="Primary key">{{template "icon" "key"}}</span>{{end}}</span><span class="ctype">{{.Type}}{{if .Generated}} · generated{{end}}</span></span>
+            <span class="sort-direction" aria-hidden="true">{{if eq .Sorted "asc"}}↑{{else if eq .Sorted "desc"}}↓{{else}}↕{{end}}</span>
+          </a>
+          <span class="column-resize" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize {{.Name}} column" aria-valuemin="72" aria-valuemax="1200" title="Drag to resize · Use left and right arrow keys"></span>
+        </th>{{end}}
+      </tr></thead>
+      <tbody>{{range $d.Inserts}}{{template "row" .}}{{end}}{{range $d.Rows}}{{template "row" .}}{{else}}{{if not $d.Inserts}}<tr><td class="empty" colspan="{{add (len $d.Cols) 1}}">No matching rows.{{if $d.Browse.Where}} Try another filter.{{end}}</td></tr>{{end}}{{end}}</tbody>
+    </table>
+  </div>
+  <div class="grid-footer"><span id="grid-hint" aria-live="polite">{{if $d.Editable}}<kbd>Enter</kbd> edit <kbd>Tab</kbd> next cell <kbd>Esc</kbd> cancel{{else}}Use arrow keys to explore cells{{end}}</span><div class="pager"><span>{{if $d.Total}}{{$d.From}}–{{$d.To}} of {{$d.Total}}{{else}}0 rows{{end}}</span>{{if $d.PrevURL}}<a class="icon" href="{{$d.PrevURL}}" hx-get="{{$d.PrevURL}}" hx-target="#table-browser" hx-swap="outerHTML" hx-push-url="true" hx-sync="#table-browser:replace" aria-label="Previous page">{{template "icon" "chevron-left"}}</a>{{else}}<button class="icon" disabled aria-label="Previous page">{{template "icon" "chevron-left"}}</button>{{end}}{{if $d.NextURL}}<a class="icon" href="{{$d.NextURL}}" hx-get="{{$d.NextURL}}" hx-target="#table-browser" hx-swap="outerHTML" hx-push-url="true" hx-sync="#table-browser:replace" aria-label="Next page">{{template "icon" "chevron-right"}}</a>{{else}}<button class="icon" disabled aria-label="Next page">{{template "icon" "chevron-right"}}</button>{{end}}</div></div>
+</div>
+{{end}}

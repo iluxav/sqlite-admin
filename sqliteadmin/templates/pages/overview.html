@@ -1,0 +1,10 @@
+{{define "content"}}{{$d := .Body}}
+<div class="page-head"><div><div class="page-title"><span class="title-icon">{{template "icon" "database"}}</span><h1>{{.DBName}}</h1></div><p class="page-subtitle">Your database, at a glance. Select a table to start exploring.</p></div><a class="btn" href="/sql">{{template "icon" "code"}}Open SQL editor</a></div>
+<div class="overview-summary"><div class="metric"><strong>{{len .Tables}}</strong><span>Tables</span></div><div class="metric"><strong>{{len .Views}}</strong><span>Views</span></div><div class="metric"><strong>{{bytes $d.Info.Size}}</strong><span>Database size</span></div><div class="metric"><strong>{{$d.Info.SQLiteVersion}}</strong><span>SQLite version</span></div></div>
+<div class="overview-layout">
+<section><div class="section-head"><h2>Database objects</h2><span>{{len $d.Objects}} objects</span></div><div class="table-scroll"><table class="data compact"><thead><tr><th>Name</th><th>Type</th><th>Table</th></tr></thead><tbody>
+{{range $d.Objects}}<tr><td>{{if or (eq .Type "table") (eq .Type "view")}}<a class="object-link" href="{{tableURL .Name}}">{{template "icon" "table"}}{{.Name}}</a>{{else}}<a class="object-link" href="{{tableURL .TblName "/schema"}}">{{template "icon" "schema"}}{{.Name}}</a>{{end}}</td><td><span class="tag">{{.Type}}</span></td><td class="muted">{{if ne .TblName .Name}}{{.TblName}}{{else}}—{{end}}</td></tr>{{else}}<tr><td colspan="3" class="empty">No tables yet.{{if not $.ReadOnly}} <a href="/new-table">Create your first table</a>.{{end}}</td></tr>{{end}}
+</tbody></table></div></section>
+<aside class="database-details"><h2>Connection details</h2><dl class="properties"><dt>Database file</dt><dd class="mono">{{$d.Info.Path}}</dd><dt>File size</dt><dd>{{bytes $d.FileSize}}</dd><dt>Driver</dt><dd>{{$d.Info.Driver}}</dd><dt>Journal mode</dt><dd>{{$d.Info.JournalMode}}</dd><dt>Encoding</dt><dd>{{$d.Info.Encoding}}</dd><dt>Storage pages</dt><dd>{{$d.Info.PageCount}} × {{bytes $d.Info.PageSize}}</dd><dt>Free pages</dt><dd>{{$d.Info.FreePages}}</dd><dt>User version</dt><dd>{{$d.Info.UserVersion}}</dd></dl></aside>
+</div>
+{{end}}

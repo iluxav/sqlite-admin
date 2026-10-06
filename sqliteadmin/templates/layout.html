@@ -1,0 +1,50 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
+<title>{{.Title}} · {{.DBName}} · sqliteadmin</title>
+<link rel="stylesheet" href="/static/app.css?v=graphite">
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/app.js?v=graphite" defer></script>
+</head>
+<body class="app-body" hx-headers='{"X-CSRF-Token": "{{.CSRF}}"}'>
+<header class="topbar">
+  <a class="brand" href="/" aria-label="sqliteadmin home"><span class="brand-mark">{{template "icon" "database"}}</span>sqlite<span>admin</span></a>
+  <div class="breadcrumb"><a href="/">{{.DBName}}</a><span class="crumb-divider">/</span><span>{{.Title}}</span></div>
+  <nav class="topnav" aria-label="Session">
+    {{if .ReadOnly}}<span class="access-mode">{{template "icon" "lock"}} Read only</span>{{else}}<span class="access-mode"><span class="status-dot"></span> Read &amp; write</span>{{end}}
+    {{template "pending-badge" (badge .Pending)}}
+  </nav>
+</header>
+<div class="shell">
+  <aside class="sidebar" aria-label="Database navigation">
+    <div class="database-switch"><span class="database-icon">{{template "icon" "database"}}</span><div><strong>{{.DBName}}</strong><span>SQLite database</span></div><span class="status-dot"></span></div>
+    <nav class="workspace-nav" aria-label="Workspace">
+      <a href="/"{{if eq .Page "overview"}} class="active" aria-current="page"{{end}}>{{template "icon" "overview"}}Overview</a>
+      <a href="/sql"{{if eq .Page "sql"}} class="active" aria-current="page"{{end}}>{{template "icon" "code"}}SQL editor</a>
+      <a href="/changes"{{if eq .Page "changes"}} class="active" aria-current="page"{{end}}>{{template "icon" "changes"}}Changes</a>
+      <a href="/backups"{{if eq .Page "backups"}} class="active" aria-current="page"{{end}}>{{template "icon" "database"}}Backups</a>
+    </nav>
+    <div class="sidebar-search">{{template "icon" "search"}}<input id="sidebar-filter" type="search" placeholder="Find a table…" aria-label="Find a table" autocomplete="off"></div>
+    <div class="sidebar-section"><h4>Tables <span>{{len .Tables}}</span></h4>{{if not .ReadOnly}}<a class="icon" href="/new-table" aria-label="New table" title="New table">{{template "icon" "plus"}}</a>{{end}}</div>
+    <ul class="objlist">
+      {{range .Tables}}<li><a href="{{tableURL .Name}}"{{if eq .Name $.Active}} class="active" aria-current="page"{{end}}>{{template "icon" "table"}}<span>{{.Name}}</span></a></li>{{else}}<li class="muted">No tables yet</li>{{end}}
+    </ul>
+    {{with .Views}}<div class="sidebar-section"><h4>Views <span>{{len .}}</span></h4></div>
+    <ul class="objlist">
+      {{range .}}<li><a href="{{tableURL .Name}}"{{if eq .Name $.Active}} class="active" aria-current="page"{{end}}>{{template "icon" "view"}}<span>{{.Name}}</span></a></li>{{end}}
+    </ul>{{end}}
+    <p id="sidebar-empty" class="muted" hidden>No matching tables or views.</p>
+    <div class="sidebar-footer"><span class="avatar">{{template "icon" "user"}}</span><div><strong>{{.User}}</strong><span>Database administrator</span></div><form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{.CSRF}}"><button type="submit" class="icon" aria-label="Log out" title="Log out">{{template "icon" "logout"}}</button></form></div>
+  </aside>
+  <main class="main" id="main-content">
+    <div id="flash" aria-live="polite"></div>
+    {{template "content" .}}
+  </main>
+</div>
+<footer class="statusbar"><span class="connection-state"><span class="status-dot"></span>{{.DBName}}</span>{{template "pending-state" (badge .Pending)}}<span class="status-brand">SQLite workspace</span></footer>
+<div id="dialog"></div>
+</body>
+</html>{{end}}

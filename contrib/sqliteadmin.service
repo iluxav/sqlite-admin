@@ -1,0 +1,22 @@
+# Example systemd user unit; this file is not installed automatically.
+# Install the binary at ~/.local/bin/sqliteadmin and configure
+# ~/.config/sqliteadmin/env with absolute database/backup paths and credentials.
+# Copy this unit to ~/.config/systemd/user/sqliteadmin.service, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now sqliteadmin.service
+# Use systemctl --user stop/restart sqliteadmin.service to manage this instance.
+[Unit]
+Description=SQLite admin UI
+
+[Service]
+Type=simple
+WorkingDirectory=%h
+ExecStart=%h/.local/bin/sqliteadmin serve --env-file %h/.config/sqliteadmin/env
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=40s
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,91 @@
+{{define "pending-badge"}}<a href="/changes" id="pending-badge" class="badge{{if .Count}} has{{end}}"{{if .OOB}} hx-swap-oob="true"{{end}}>{{template "icon" "changes"}}<span>Review changes</span><span class="badge-count">{{.Count}}</span></a>{{end}}
+{{define "pending-state"}}<span id="pending-state" class="pending-state{{if .Count}} has{{end}}"{{if .OOB}} hx-swap-oob="true"{{end}} aria-live="polite">{{if .Count}}<span class="pending-dot"></span>{{.Count}} pending {{plural .Count "change" "changes"}}<a href="/changes">Review &amp; commit</a>{{else}}{{template "icon" "check"}}No pending changes{{end}}</span>{{end}}
+
+{{define "flash"}}<div class="flash{{if .Error}} error{{else}} ok{{end}}" role="{{if .Error}}alert{{else}}status{{end}}"><pre>{{.Msg}}</pre><button type="button" class="x" data-dismiss aria-label="Dismiss">×</button></div>{{end}}
+
+{{define "value"}}{{if .IsNull}}<span class="null">NULL</span>{{else if .IsBlob}}<span class="blob">{{.Display}}</span>{{else}}{{.Short}}{{end}}{{end}}
+
+{{define "row"}}<tr class="{{.State}}" data-row-key="{{.Key}}">
+<td class="act"><span class="row-number">{{if eq .State "inserted"}}+{{end}}</span>
+{{if .Editable}}{{if eq .State "inserted"}}<button type="button" class="icon row-action" tabindex="-1" hx-post="/changes/{{.ChangeID}}/remove" title="Remove staged row" aria-label="Remove staged row">{{template "icon" "close"}}</button>
+{{else}}<button type="button" class="icon row-action" tabindex="-1" hx-post="/t/{{pathEsc .Table}}/delete?key={{qesc .Key}}" hx-target="closest tr" hx-swap="outerHTML" title="{{if eq .State "deleted"}}Undo delete{{else}}Stage row deletion{{end}}" aria-label="{{if eq .State "deleted"}}Undo delete{{else}}Stage row deletion{{end}}">{{if eq .State "deleted"}}{{template "icon" "undo"}}{{else}}{{template "icon" "minus"}}{{end}}</button>{{end}}{{end}}</td>
+{{range .Cells}}{{template "cell" .}}{{end}}
+</tr>{{end}}
+
+{{define "cell"}}<td role="gridcell" tabindex="-1" data-grid-cell data-col="{{.Col}}" data-value="{{.Value.EditText}}" data-null="{{.Value.IsNull}}" aria-readonly="{{if .Editable}}false{{else}}true{{end}}" class="cell{{if .Dirty}} dirty{{end}}{{if .Default}} isdefault{{end}}{{if .Value.IsNull}} isnull{{end}}"
+{{if .Editable}} data-edit-url="/t/{{pathEsc .Table}}/cell"{{end}}{{with .Title}} title="{{.}}"{{end}}><span class="cell-content">{{if .Default}}<span class="null">DEFAULT</span>{{else}}{{template "value" .Value}}{{end}}</span>{{if .Dirty}}<span class="dirty-marker" aria-label="Pending change"></span>{{end}}</td>{{end}}
+
+{{define "cell-editor"}}<td role="gridcell" tabindex="-1" data-grid-cell data-col="{{.Col}}" class="cell editing"><form class="cell-form" hx-post="/t/{{pathEsc .Table}}/cell" hx-target="closest td" hx-swap="outerHTML"><input type="hidden" name="key" value="{{.Key}}"><input type="hidden" name="col" value="{{.Col}}"><input type="hidden" name="cell_only" value="1"><input type="hidden" name="null" value="{{if .IsNull}}1{{end}}"><textarea name="value" rows="1" wrap="off" autofocus spellcheck="false" aria-label="Edit {{.Col}}">{{.Text}}</textarea></form></td>{{end}}
+
+{{define "insert-form"}}<div class="overlay"><div class="dialog-card wide">
+<h3>New row in <code>{{.Table}}</code></h3>
+<form hx-post="/t/{{pathEsc .Table}}/insert">
+<table class="form-table">
+{{range .Fields}}<tr>
+  <th><code>{{.Col.Name}}</code>{{if .PK}} <span class="pk">PK</span>{{end}}<div class="ctype">{{.Col.Type}}{{if .Col.NotNull}} · NOT NULL{{end}}{{with .Default}} · default {{.}}{{end}}</div></th>
+  <td><select name="mode_{{.Index}}">
+    <option value="value"{{if eq .Mode "value"}} selected{{end}}>value</option>
+    <option value="null"{{if eq .Mode "null"}} selected{{end}}>NULL</option>
+    <option value="default"{{if eq .Mode "default"}} selected{{end}}>DEFAULT</option>
+  </select></td>
+  <td><input type="text" name="val_{{.Index}}" data-mode-for="mode_{{.Index}}" autocomplete="off" spellcheck="false"></td>
+</tr>{{end}}
+</table>
+<div class="dialog-actions"><button type="button" class="btn" data-close-dialog>Cancel</button><button type="submit" class="btn primary">Stage row</button></div>
+</form>
+</div></div>{{end}}
+
+{{define "ddl-confirm"}}<div class="overlay"><div class="dialog-card wide">
+<h3>{{.Plan.Title}}</h3>
+{{range .Plan.Notes}}<p class="note">{{.}}</p>{{end}}
+<p class="muted">This runs immediately{{if gt (len .Plan.Statements) 1}}, in one transaction{{end}}:</p>
+<pre class="sql">{{range $i, $s := .Plan.Statements}}{{if $i}}
+{{end}}{{$s}};{{end}}</pre>
+<form hx-post="/ddl/exec">
+{{range .Fields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+{{with .Plan.Confirm}}<label class="confirm">Type <code>{{.}}</code> to confirm <input type="text" name="confirm" data-confirm-match="{{.}}" autocomplete="off" autofocus></label>{{end}}
+<div class="dialog-actions">
+  <button type="button" class="btn" data-close-dialog>Cancel</button>
+  <button type="submit" class="btn {{if .Plan.Danger}}danger{{else}}primary{{end}}"{{if .Plan.Confirm}} disabled data-confirm-target{{end}}>Execute</button>
+</div>
+</form>
+</div></div>{{end}}
+
+{{define "restore-confirm"}}<div class="overlay"><div class="dialog-card">
+<h3>Restore {{.Database}}?</h3>
+<p>This replaces the current database with <strong>{{.DisplayName}}</strong>.</p>
+<p class="muted">A local safety backup is created first. Commit or discard pending edits in every session, and pause writes in the host app before continuing.</p>
+<form hx-post="/backups/restore" hx-target="#dialog" hx-disabled-elt="find button" hx-indicator="#restoring-backup">
+<input type="hidden" name="source" value="{{.Source}}"><input type="hidden" name="name" value="{{.Name}}">
+<label class="confirm">Type <code>{{.Database}}</code> to confirm<input type="text" name="confirm" autocomplete="off" data-confirm-match="{{.Database}}" autofocus></label>
+<p class="htmx-indicator" id="restoring-backup" role="status">Creating a safety backup and restoring…</p>
+<div class="dialog-actions"><button type="button" class="btn" data-close-dialog>Cancel</button><button type="submit" class="btn danger" disabled data-confirm-target>Restore database</button></div>
+</form></div></div>{{end}}
+
+{{define "sql-results"}}<div id="results">
+{{with .Warning}}<div class="flash warn"><pre>{{.}}</pre></div>{{end}}
+{{range .Results}}<section class="result">
+<pre class="sql small">{{.SQL}}</pre>
+{{if .Err}}<div class="flash error"><pre>{{.Err}}</pre></div>
+{{else if .HasRows}}<div class="meta">{{len .Rows}} {{plural (len .Rows) "row" "rows"}}{{if .Truncated}} (first {{len .Rows}} shown){{end}} · {{dur .Duration}}</div>
+<div class="table-scroll"><table class="data">
+<thead><tr>{{range .Columns}}<th>{{.}}</th>{{end}}</tr></thead>
+<tbody>{{range .Rows}}<tr>{{range .}}<td class="cell{{if .IsNull}} isnull{{end}}">{{template "value" .}}</td>{{end}}</tr>{{end}}</tbody>
+</table></div>
+{{else}}<div class="meta ok">OK{{if .Changes}} · {{.Changes}} {{plural .Changes "row" "rows"}} changed{{end}} · {{dur .Duration}}</div>{{end}}
+</section>{{end}}
+</div>{{end}}
+
+{{define "snippets"}}<ul id="snippets" class="snippets">
+{{range .List}}<li>
+  <a href="/sql?snippet={{.ID}}" title="Load into editor">{{.Name}}</a>
+  <span class="snip-actions">
+    <button type="button" class="icon" hx-post="/sql?snippet={{.ID}}" hx-target="body" hx-swap="outerHTML" hx-push-url="/sql?snippet={{.ID}}" title="Load and run">▶</button>
+    {{if not $.ReadOnly}}<button type="button" class="icon" hx-post="/sql/snippets/{{.ID}}/delete" hx-target="#snippets" hx-swap="outerHTML" hx-confirm="Delete this snippet?" title="Delete snippet">✕</button>{{end}}
+  </span>
+</li>{{else}}<li class="muted">No saved snippets yet.</li>{{end}}
+</ul>{{end}}
+
+{{define "type-list"}}<datalist id="sqlite-types"><option value="INTEGER"><option value="TEXT"><option value="REAL"><option value="BLOB"><option value="NUMERIC"><option value="ANY"></datalist>{{end}}
+
+{{define "icon"}}<svg class="ui-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{if eq . "database"}}<ellipse cx="8" cy="3.5" rx="5.5" ry="2"/><path d="M2.5 3.5v9c0 2.7 11 2.7 11 0v-9M2.5 8c0 2.7 11 2.7 11 0"/>{{else if eq . "table"}}<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M6.5 6.5v7"/>{{else if eq . "overview"}}<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>{{else if eq . "code"}}<path d="m5 4-4 4 4 4m6-8 4 4-4 4M9 2 7 14"/>{{else if eq . "changes"}}<path d="M4 2v9a3 3 0 0 0 3 3h2M4 6h5a3 3 0 0 0 3-3V2"/><circle cx="4" cy="2" r="1"/><circle cx="12" cy="2" r="1"/><circle cx="10" cy="14" r="1"/>{{else if eq . "search"}}<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/>{{else if eq . "plus"}}<path d="M8 3v10M3 8h10"/>{{else if eq . "minus"}}<path d="M3 8h10"/>{{else if eq . "close"}}<path d="m4 4 8 8M12 4l-8 8"/>{{else if eq . "check"}}<path d="m3 8 3.5 3.5L13 5"/>{{else if eq . "view"}}<path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z"/><circle cx="8" cy="8" r="2"/>{{else if eq . "user"}}<circle cx="8" cy="5" r="2.5"/><path d="M2.5 14v-1a5.5 5.5 0 0 1 11 0v1"/>{{else if eq . "logout"}}<path d="M6 2H3v12h3m3-9 3 3-3 3M6 8h8"/>{{else if eq . "lock"}}<rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V4a3 3 0 0 1 6 0v3M8 10v1"/>{{else if eq . "schema"}}<rect x="5.5" y="1" width="5" height="4" rx="1"/><rect x="1" y="11" width="5" height="4" rx="1"/><rect x="10" y="11" width="5" height="4" rx="1"/><path d="M8 5v3M3.5 11V8h9v3"/>{{else if eq . "filter"}}<path d="M2 3h12L9 8v5l-2-1V8Z"/>{{else if eq . "refresh"}}<path d="M13 6a5.5 5.5 0 1 0 .5 4M13 2v4H9"/>{{else if eq . "edit"}}<path d="m10.5 2.5 3 3-8 8H2.5v-3Z"/><path d="m8.5 4.5 3 3"/>{{else if eq . "key"}}<circle cx="5" cy="5" r="3"/><path d="m7 7 7 7m-4-4 2-2m0 4 2-2"/>{{else if eq . "undo"}}<path d="M2 7h7a4 4 0 0 1 0 8M5 3 1 7l4 4"/>{{else if eq . "download"}}<path d="M8 2v8m-3-3 3 3 3-3M2.5 10v3.5h11V10"/>{{else if eq . "upload"}}<path d="M8 10V2m-3 3 3-3 3 3M2.5 10v3.5h11V10"/>{{else if eq . "cloud"}}<path d="M4 12.5h7.5a3 3 0 0 0 .4-6 4 4 0 0 0-7.7-1.1A3.6 3.6 0 0 0 4 12.5Z"/>{{else if eq . "chevron-left"}}<path d="m10 4-4 4 4 4"/>{{else if eq . "chevron-right"}}<path d="m6 4 4 4-4 4"/>{{end}}</svg>{{end}}

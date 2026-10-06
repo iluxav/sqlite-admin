@@ -1,0 +1,11 @@
+# Local configuration can contain credentials.
+.env
+.env.*
+!.env.example
+
+# Locally built CLI.
+/bin/
+.codex
+.agents
+CLAUDE.md
+/runner

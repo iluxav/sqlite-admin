@@ -1,0 +1,42 @@
+{{define "content"}}
+<div class="page-head"><h1>New table</h1></div>
+<form class="panel" hx-post="/ddl/preview" hx-target="#dialog">
+  <input type="hidden" name="op" value="create_table">
+  <label class="field">Table name <input name="name" required autofocus spellcheck="false"></label>
+  <div class="table-scroll"><table class="data compact form-cols">
+    <thead><tr><th>Column</th><th>Type</th><th>PK</th><th>Not null</th><th>Unique</th><th>Default</th><th></th></tr></thead>
+    <tbody id="new-cols" data-next="3">
+      <tr>
+        <td><input name="c0_name" value="id" spellcheck="false"></td>
+        <td><input name="c0_type" value="INTEGER" list="sqlite-types" spellcheck="false"></td>
+        <td><input type="checkbox" name="c0_pk" value="1" checked></td>
+        <td><input type="checkbox" name="c0_notnull" value="1"></td>
+        <td><input type="checkbox" name="c0_unique" value="1"></td>
+        <td><input name="c0_default" spellcheck="false"></td>
+        <td><button type="button" class="icon" data-remove-row title="Remove column">✕</button></td>
+      </tr>
+      {{template "col-row" "1"}}
+      {{template "col-row" "2"}}
+    </tbody>
+  </table></div>
+  <p><button type="button" class="btn small" data-add-row="col-row-tpl" data-target="new-cols">+ Column</button></p>
+  <div class="opts">
+    <label class="chk"><input type="checkbox" name="without_rowid" value="1"> WITHOUT ROWID</label>
+    <label class="chk"><input type="checkbox" name="strict" value="1"> STRICT</label>
+  </div>
+  <p class="hint">An <code>INTEGER</code> primary key becomes the rowid. Defaults are SQL expressions, e.g. <code>0</code>, <code>'text'</code>, <code>CURRENT_TIMESTAMP</code>. Empty rows are ignored.</p>
+  <div class="dialog-actions"><button type="submit" class="btn primary">Preview</button></div>
+</form>
+<template id="col-row-tpl">{{template "col-row" "__i__"}}</template>
+{{template "type-list"}}
+{{end}}
+
+{{define "col-row"}}<tr>
+  <td><input name="c{{.}}_name" placeholder="name" spellcheck="false"></td>
+  <td><input name="c{{.}}_type" placeholder="TEXT" list="sqlite-types" spellcheck="false"></td>
+  <td><input type="checkbox" name="c{{.}}_pk" value="1"></td>
+  <td><input type="checkbox" name="c{{.}}_notnull" value="1"></td>
+  <td><input type="checkbox" name="c{{.}}_unique" value="1"></td>
+  <td><input name="c{{.}}_default" spellcheck="false"></td>
+  <td><button type="button" class="icon" data-remove-row title="Remove column">✕</button></td>
+</tr>{{end}}

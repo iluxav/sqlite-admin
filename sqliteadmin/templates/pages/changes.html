@@ -1,0 +1,24 @@
+{{define "content"}}{{$d := .Body}}
+<div class="page-head"><h1>Pending changes</h1></div>
+{{with $d.Committed}}<div class="flash ok"><pre>Committed {{.}} {{plural . "change" "changes"}}.</pre></div>{{end}}
+{{if $d.Changes}}
+<p class="hint">These edits exist only in your session. Commit runs them in one transaction, combining edits to each row. If an edited cell or a row marked for deletion changed or vanished since staging, nothing is committed.</p>
+<ol class="changes">
+{{range $d.Changes}}<li class="change">
+  <div class="change-head">
+    <span class="tag {{.Kind}}">{{.Kind}}</span>
+    <a href="{{tableURL .Table}}">{{.Table}}</a>
+    <span class="spacer"></span>
+    {{range .Items}}<button type="button" class="btn small ghost" hx-post="/changes/{{.ID}}/remove" title="Remove change #{{.ID}}">Remove{{with .Column}} {{.}}{{end}}</button>{{end}}
+  </div>
+  <pre class="sql">{{.Preview}};</pre>
+</li>{{end}}
+</ol>
+<div class="commit-bar">
+  <button type="button" class="btn ghost" hx-post="/changes/discard" hx-confirm="Discard all pending changes?">Discard all</button>
+  <button type="button" class="btn primary" hx-post="/changes/commit">Commit {{$d.Count}} {{plural $d.Count "change" "changes"}}</button>
+</div>
+{{else}}
+<p class="empty-state">No pending changes. Double-click a cell in any table to start editing.</p>
+{{end}}
+{{end}}
