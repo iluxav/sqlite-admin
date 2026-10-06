@@ -255,7 +255,12 @@ func (m *backupManager) snapshot(ctx context.Context, destination, kind string) 
 	}
 	file := f.Name()
 	f.Close()
-	defer os.Remove(file)
+	// The copy and its check open the file as a database, which leaves -wal and -shm beside it.
+	defer func() {
+		for _, suffix := range []string{"", "-wal", "-shm", "-journal"} {
+			os.Remove(file + suffix)
+		}
+	}()
 	c, err := m.a.conn(ctx)
 	if err != nil {
 		return entry, err

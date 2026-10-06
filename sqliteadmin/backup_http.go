@@ -65,7 +65,10 @@ func (a *Admin) backupCreate(w http.ResponseWriter, r *http.Request, s *session)
 	if err != nil {
 		return err
 	}
-	return a.renderBackups(w, r, "Backup created.")
+	if r.FormValue("destination") == "s3" {
+		return a.renderBackups(w, r, "Backup created and uploaded to S3.")
+	}
+	return a.renderBackups(w, r, "Backup created in local storage.")
 }
 
 func (a *Admin) backupScheduleSave(w http.ResponseWriter, r *http.Request, s *session) error {
@@ -78,6 +81,9 @@ func (a *Admin) backupScheduleSave(w http.ResponseWriter, r *http.Request, s *se
 		return err
 	}
 	a.log.Info("backup schedule updated", "user", s.user, "enabled", r.FormValue("enabled") == "1", "minutes", minutes)
+	if r.FormValue("enabled") != "1" {
+		return a.renderBackups(w, r, "Schedule saved, but automatic backups are off: turn on the switch above to start them.")
+	}
 	return a.renderBackups(w, r, "Backup schedule saved.")
 }
 
