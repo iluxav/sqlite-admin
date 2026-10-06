@@ -147,7 +147,7 @@ S3 backups are built and checked locally before upload. Successful uploads remov
 
 ### Periodic backups
 
-Enable **Automatic backups**, choose **Every hour**, **Every day**, **Every week**, or a **Custom interval** in minutes, and click **Save schedule**. When S3 is configured, you can also choose the destination. Scheduling is off until enabled.
+Enable **Automatic backups** (the switch saves at once), choose **Every hour**, **Every day**, **Every week**, or a **Custom interval** in minutes, and click **Save schedule**. When S3 is configured, you can also choose the destination. Scheduling is off until enabled.
 
 The scheduler runs in the host process, including when you serve `Admin.Handler()` yourself. Settings, the next deadline, and the last result persist in the backup folder. After downtime, an overdue schedule runs once and schedules the next interval from that run; it does not replay every missed period. Jobs do not overlap. A failed run is recorded and retries at the next interval. Keep one scheduler owner per database/backup folder. No backups are automatically deleted; manage retention in local storage or with an S3 lifecycle rule.
 

@@ -47,7 +47,7 @@
     </div>
     <aside class="backup-aside" aria-label="Backup settings">
       <section class="backup-schedule" aria-labelledby="schedule-heading">
-        <form data-backup-schedule hx-post="/backups/schedule" hx-target="#backup-panel" hx-swap="outerHTML" hx-disabled-elt="find button">
+        <form data-backup-schedule hx-post="/backups/schedule" hx-trigger="submit, change from:[data-backup-schedule] input[name='enabled']" hx-target="#backup-panel" hx-swap="outerHTML" hx-disabled-elt="find button">
           <div class="backup-section-head"><h2 id="schedule-heading">Automatic backups</h2><label class="backup-switch"><input type="checkbox" role="switch" aria-label="Enable automatic backups" name="enabled" value="1"{{if $d.Schedule.Enabled}} checked{{end}}{{if .ReadOnly}} disabled{{end}}><span aria-hidden="true"></span></label></div>
           <p class="backup-schedule-description">Create snapshots on a regular schedule.</p>
           <fieldset{{if .ReadOnly}} disabled{{end}}>
