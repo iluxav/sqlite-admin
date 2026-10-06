@@ -93,6 +93,7 @@ const (
 	maxLoginFailures = 5
 	loginWindow      = 15 * time.Minute
 	loginBlock       = 15 * time.Minute
+	maxLoginEntries  = 4096 // addresses remembered at once; the table is swept, then evicted, past it
 )
 
 func newLoginLimiter() *loginLimiter { return &loginLimiter{m: map[string]*loginAttempts{}} }
@@ -109,6 +110,21 @@ func (l *loginLimiter) fail(ip string) {
 	defer l.mu.Unlock()
 	now := time.Now()
 	at := l.m[ip]
+	if at == nil && len(l.m) >= maxLoginEntries {
+		// Bounded memory, whatever addresses a flood claims: forget what has
+		// expired, then, if still full, an arbitrary entry.
+		for k, v := range l.m {
+			if now.Sub(v.first) > loginWindow && now.After(v.blockedUntil) {
+				delete(l.m, k)
+			}
+		}
+		for k := range l.m {
+			if len(l.m) < maxLoginEntries {
+				break
+			}
+			delete(l.m, k)
+		}
+	}
 	if at == nil || now.Sub(at.first) > loginWindow {
 		at = &loginAttempts{first: now}
 		l.m[ip] = at
@@ -127,14 +143,22 @@ func (l *loginLimiter) succeed(ip string) {
 }
 
 // clientIP keys the login limiter. Behind a reverse proxy every request arrives
-// from the proxy's address, so with BehindProxy the first X-Forwarded-For entry
-// is used instead; without it the header is ignored, since a direct client
-// could set it to anything.
+// from the proxy's address, so with BehindProxy the last X-Forwarded-For entry
+// is used instead: the one the proxy itself appended, which a client cannot
+// choose (the first entry can be whatever the client sent). A host behind a
+// longer chain supplies Config.ClientAddress. Without either, the header is
+// ignored, since a direct client could set it to anything.
 func (a *Admin) clientIP(r *http.Request) string {
-	if a.cfg.BehindProxy {
+	if a.cfg.ClientAddress != nil {
+		if ip := strings.TrimSpace(a.cfg.ClientAddress(r)); ip != "" {
+			return ip
+		}
+	} else if a.cfg.BehindProxy {
 		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-			first, _, _ := strings.Cut(fwd, ",")
-			if ip := strings.TrimSpace(first); ip != "" {
+			if i := strings.LastIndex(fwd, ","); i >= 0 {
+				fwd = fwd[i+1:]
+			}
+			if ip := strings.TrimSpace(fwd); ip != "" {
 				return ip
 			}
 		}

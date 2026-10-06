@@ -62,13 +62,19 @@ type Config struct {
 	// schema changes, writing SQL, saving snippets, backup creation and restore.
 	ReadOnly bool
 
-	// BehindProxy says the UI is served through a reverse proxy that sets
-	// X-Forwarded-For and X-Forwarded-Proto (Caddy, nginx, Cloudflare): the
-	// login limiter then keys on the forwarded client address instead of the
-	// proxy's, and the session cookie is marked Secure when the forwarded
-	// scheme is https. Default false, or SQLITEADMIN_BEHIND_PROXY=true. Leave
-	// it off when clients connect directly: they could set those headers.
+	// BehindProxy says the UI is served through one reverse proxy that sets
+	// X-Forwarded-For and X-Forwarded-Proto (Caddy, nginx): the login limiter
+	// then keys on the last forwarded address, the one that proxy appended,
+	// instead of the proxy's own, and the session cookie is marked Secure when
+	// the forwarded scheme is https. Default false, or
+	// SQLITEADMIN_BEHIND_PROXY=true. Leave it off when clients connect
+	// directly: they could set those headers.
 	BehindProxy bool
+
+	// ClientAddress, when set, names the client for the login limiter: for a
+	// host behind more than one proxy (a CDN in front of Caddy), which knows
+	// which header to trust. It takes precedence over BehindProxy's address.
+	ClientAddress func(*http.Request) string
 
 	// SessionTimeout is how long an idle login session stays valid.
 	// Default 1 hour.

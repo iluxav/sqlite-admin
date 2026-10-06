@@ -188,7 +188,8 @@ Other optional settings:
 | `BackupTimeout` | 5 minutes per backup/restore operation |
 | `MaxRestoreBytes` | 1 GiB per upload or S3 restore/download |
 | `ReadOnly` | Disables mutations, including backup scheduling and restore |
-| `BehindProxy` | Served through a reverse proxy (Caddy, nginx, Cloudflare): the login limiter keys on the first `X-Forwarded-For` address and the session cookie is `Secure` when `X-Forwarded-Proto` is `https`. Also `SQLITEADMIN_BEHIND_PROXY=true`. Leave it off for direct clients, who could set those headers |
+| `BehindProxy` | Served through one reverse proxy (Caddy, nginx): the login limiter keys on the last `X-Forwarded-For` address, the one the proxy appended, and the session cookie is `Secure` when `X-Forwarded-Proto` is `https`. Also `SQLITEADMIN_BEHIND_PROXY=true`. Leave it off for direct clients, who could set those headers |
+| `ClientAddress func(*http.Request) string` | The client's address for the login limiter when the host sits behind more than one proxy (a CDN in front of Caddy) and knows which header to trust; takes precedence over `BehindProxy` |
 
 Call `Shutdown` to stop the scheduler and release database resources. When serving `Handler()` with your own HTTP server, allow enough read/write timeout for uploads and backups.
 
