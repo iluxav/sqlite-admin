@@ -7,7 +7,7 @@
   <header class="backup-page-head">
     <div><div class="page-title"><span class="title-icon">{{template "icon" "database"}}</span><h1>Backups</h1></div><p class="page-subtitle">Manage snapshots and automatic backups.</p></div>
     <form class="backup-create" hx-post="/backups/create" hx-target="#backup-panel" hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#creating-backup">
-      {{if $d.S3}}<select name="destination" aria-label="Backup destination"{{if .ReadOnly}} disabled{{end}}><option value="local">Local storage</option><option value="s3">S3 storage</option></select>{{else}}<input type="hidden" name="destination" value="local">{{end}}
+      {{if $d.S3}}<select name="destination" aria-label="Backup destination"{{if .ReadOnly}} disabled{{end}}><option value="local">Local storage</option><option value="s3" selected>S3 storage</option></select>{{else}}<input type="hidden" name="destination" value="local">{{end}}
       <button type="submit" class="btn primary"{{if .ReadOnly}} disabled{{end}}>{{template "icon" "plus"}}Back up now</button>
       <span class="htmx-indicator backup-progress" id="creating-backup" role="status">Creating snapshot…</span>
     </form>

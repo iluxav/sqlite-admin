@@ -115,7 +115,7 @@ Existing exported environment variables take precedence over `.env`, including e
 
 ## Backups and restore
 
-Open **Backups** in the sidebar. **Back up now** creates a complete SQLite snapshot of committed data, including schema, triggers, indexes, implicit rowids, blobs, and database metadata. Staged edits are included only after you commit them.
+Open **Backups** in the sidebar. **Back up now** creates a complete SQLite snapshot of committed data, including schema, triggers, indexes, implicit rowids, blobs, and database metadata. Staged edits are included only after you commit them. With S3 configured, the destination next to the button defaults to S3; the schedule has a destination of its own.
 
 Local storage is always available. By default, snapshots and `schedule.json` live beside the database in `<database path>.backups/`. Set a persistent folder in the runner's `.env` or export it before starting the app to override it:
 
