@@ -5,6 +5,8 @@
 
 # Locally built CLI.
 /bin/
+/dist/
+__pycache__/
 .codex
 .agents
 CLAUDE.md

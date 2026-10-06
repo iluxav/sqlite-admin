@@ -4,7 +4,23 @@ A Go admin UI for browsing SQLite, staging edits, running SQL, and managing back
 
 ## Standalone CLI
 
-Build from the repository root with Go 1.26 or newer:
+Install or update to the latest release:
+
+```sh
+curl -fsSL https://github.com/iluxav/sqlite-admin/releases/latest/download/install.sh | sh
+sqliteadmin --version
+```
+
+This URL becomes available after the first release tag is published. The installer detects the OS and architecture and verifies the archive's SHA-256 checksum. It uses `/usr/local/bin` when writable, otherwise `~/.local/bin`, without invoking sudo. Add the install directory to your `PATH` if prompted. It replaces the executable atomically; restart a running instance to use the updated version.
+
+For a specific release or install directory:
+
+```sh
+curl -fsSL https://github.com/iluxav/sqlite-admin/releases/latest/download/install.sh \
+  | SQLITEADMIN_VERSION=v0.1.0 SQLITEADMIN_INSTALL_DIR="$HOME/.local/bin" sh
+```
+
+Alternatively, build from the repository root with Go 1.26 or newer:
 
 ```bash
 go build -buildvcs=false -o bin/sqliteadmin ./cmd/sqliteadmin
@@ -49,7 +65,38 @@ Instance directories are private (`0700`); new logs and control sockets use `060
 
 Background mode does not install a service or automatically restart after a crash or reboot. For supervised operation, run `serve` under a service manager. An example [systemd user service](contrib/sqliteadmin.service) is included. It uses `~/.local/bin/sqliteadmin` and `~/.config/sqliteadmin/env`; set absolute database and backup paths in that env file. Install and enable the unit only when you want a persistent service. Manage a supervised instance with `systemctl --user`, so the service manager stays in control of its lifecycle. See the [systemd service documentation](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html).
 
-The root module owns the CLI and its driver dependencies. The `sqliteadmin/` library remains a separate module without a driver dependency. Build/install this source checkout locally; versioned `go install ...@version` distribution requires publishing the nested library version and replacing the local development module replacement.
+The root module owns the CLI and its driver dependencies. The `sqliteadmin/` library remains a separate module without a driver dependency. Use the release installer or build this source checkout locally; versioned `go install ...@version` distribution requires publishing the nested library version and replacing the local development module replacement.
+
+## Publishing releases
+
+Push a stable version tag to `iluxav/sqlite-admin`:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The [Release workflow](.github/workflows/release.yml) accepts `vMAJOR.MINOR.PATCH` tags, including `v0.0.0`. It tests the CLI and library modules and the installer, cross-compiles the CLI without CGO, then publishes a GitHub Release. The same workflow can be run manually with an existing tag to retry an interrupted release.
+
+| Platform | Architectures |
+| --- | --- |
+| macOS | Intel (`amd64`), Apple Silicon (`arm64`, including detection from a Rosetta shell) |
+| Linux | `amd64`, `arm64`, `armv7`, `386`, `riscv64`, `ppc64le`, `s390x`, `loong64` |
+
+Each `sqliteadmin_<tag>_<os>_<arch>.tar.gz` contains the binary, README, example configuration, and optional systemd unit. Linux ARM builds require ARMv7 or newer. No external SQLite installation is required.
+
+All ten archives, `checksums.txt`, and `install.sh` are uploaded as release assets. Build archives and release metadata are also retained as Actions artifacts for 14 days. The installer uses Release assets, so installation continues to work after Actions artifacts expire. Only the publish job receives `contents: write`; the workflow uses GitHub's provided token and needs no additional secrets.
+
+The release stays in draft until every asset is uploaded. A rerun can finish an existing draft; published releases are never overwritten. Publish a new tag for a changed binary. The workflow checks that the tag still points to the tested commit before uploading. GitHub selects the latest stable release using its date/version ordering. Tags with prerelease suffixes are not published by this workflow.
+
+For local packaging checks:
+
+```bash
+sh scripts/build-release.sh v0.1.0 linux amd64 dist
+python3 -m unittest discover -s scripts/tests -v
+```
+
+The release/installer flow follows [Delegent's release workflow](https://github.com/iluxav/delegent/blob/main/.github/workflows/release.yml) and [installer](https://github.com/iluxav/delegent/blob/main/install.sh). The download source can be overridden with `SQLITEADMIN_REPO=owner/repo` for forks; workflow-generated installers default to the repository publishing them.
 
 ## Run the demo
 

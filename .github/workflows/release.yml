@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]*.[0-9]*.[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag, e.g. v0.1.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      commit: ${{ steps.commit.outputs.commit }}
+    steps:
+      - name: Validate release tag
+        id: tag
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo 'Expected a stable vMAJOR.MINOR.PATCH tag.' >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          persist-credentials: false
+      - name: Pin every job to the same commit
+        id: commit
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Test all Go modules
+        run: |
+          for module in . sqliteadmin; do
+            (cd "$module" && go test -race ./... && go vet ./...)
+          done
+      - name: Test installer and publishing logic
+        run: python3 -m unittest discover -s scripts/tests -v
+      - name: Check shell scripts
+        run: shellcheck -s sh install.sh scripts/build-release.sh
+
+  build:
+    needs: [prepare, verify]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: darwin, arch: amd64}
+          - {os: darwin, arch: arm64}
+          - {os: linux, arch: amd64}
+          - {os: linux, arch: arm64}
+          - {os: linux, arch: armv7}
+          - {os: linux, arch: '386'}
+          - {os: linux, arch: riscv64}
+          - {os: linux, arch: ppc64le}
+          - {os: linux, arch: s390x}
+          - {os: linux, arch: loong64}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Build release archive
+        env:
+          VERSION: ${{ needs.prepare.outputs.tag }}
+          TARGET_OS: ${{ matrix.os }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: sh scripts/build-release.sh "$VERSION" "$TARGET_OS" "$TARGET_ARCH"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sqliteadmin-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+          overwrite: true
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: sqliteadmin-*
+          path: dist
+          merge-multiple: true
+      - name: Prepare installer and checksums
+        env:
+          VERSION: ${{ needs.prepare.outputs.tag }}
+        run: python3 scripts/release.py prepare "$VERSION" dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sqliteadmin-release-metadata
+          path: |
+            dist/install.sh
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
+      - name: Publish complete GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+        run: python3 scripts/release.py publish "$VERSION" dist

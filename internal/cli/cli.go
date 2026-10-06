@@ -5,14 +5,19 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"runtime"
 )
 
-const usage = `Usage: sqliteadmin [serve|start|status|stop] [options]
+// Version is set by the release build's linker flags.
+var Version = "dev"
+
+const usage = `Usage: sqliteadmin [serve|start|status|stop|version] [options]
 
   serve   Run in the foreground (default); stop with Ctrl-C
   start   Run in the background; wait for startup confirmation
   status  Show the running instance for a database (exit 3 if stopped)
   stop    Gracefully stop that instance
+  version Show the installed version
 
 Examples:
   sqliteadmin serve --db ./app.db --env-file .env
@@ -25,6 +30,10 @@ supported on Linux and macOS. No database is created automatically.
 `
 
 func Run(args []string, out, errOut io.Writer) int {
+	if len(args) == 1 && (args[0] == "version" || args[0] == "--version") {
+		fmt.Fprintf(out, "sqliteadmin %s %s/%s\n", Version, runtime.GOOS, runtime.GOARCH)
+		return 0
+	}
 	command := "serve"
 	if len(args) > 0 && len(args[0]) > 0 && args[0][0] != '-' {
 		command, args = args[0], args[1:]

@@ -61,3 +61,12 @@ func TestOptionsErrorsAndHelp(t *testing.T) {
 		t.Fatalf("help: %d %s %s", code, &out, &stderr)
 	}
 }
+
+func TestVersionDoesNotNeedConfiguration(t *testing.T) {
+	for _, arg := range []string{"version", "--version"} {
+		var out bytes.Buffer
+		if code := Run([]string{arg}, &out, &out); code != 0 || !strings.HasPrefix(out.String(), "sqliteadmin "+Version+" ") {
+			t.Fatalf("version: %d %s", code, &out)
+		}
+	}
+}
