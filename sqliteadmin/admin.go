@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -33,6 +34,8 @@ import (
 const (
 	EnvUsername = "SQLITEADMIN_USER"
 	EnvPassword = "SQLITEADMIN_PASSWORD"
+	// EnvBehindProxy turns Config.BehindProxy on: "1", "true", "yes" or "on".
+	EnvBehindProxy = "SQLITEADMIN_BEHIND_PROXY"
 )
 
 // Config configures an Admin.
@@ -58,6 +61,14 @@ type Config struct {
 	// ReadOnly disables every write path: cell edits, row inserts/deletes,
 	// schema changes, writing SQL, saving snippets, backup creation and restore.
 	ReadOnly bool
+
+	// BehindProxy says the UI is served through a reverse proxy that sets
+	// X-Forwarded-For and X-Forwarded-Proto (Caddy, nginx, Cloudflare): the
+	// login limiter then keys on the forwarded client address instead of the
+	// proxy's, and the session cookie is marked Secure when the forwarded
+	// scheme is https. Default false, or SQLITEADMIN_BEHIND_PROXY=true. Leave
+	// it off when clients connect directly: they could set those headers.
+	BehindProxy bool
 
 	// SessionTimeout is how long an idle login session stays valid.
 	// Default 1 hour.
@@ -112,6 +123,9 @@ func New(cfg Config) (*Admin, error) {
 	}
 	if cfg.Password == "" {
 		cfg.Password = os.Getenv(EnvPassword)
+	}
+	if !cfg.BehindProxy {
+		cfg.BehindProxy = envBool(EnvBehindProxy)
 	}
 	if cfg.Username == "" || cfg.Password == "" {
 		return nil, fmt.Errorf("sqliteadmin: username and password are required (set %s and %s, or Config.Username/Config.Password)", EnvUsername, EnvPassword)
@@ -259,4 +273,13 @@ func isLoopback(addr string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// envBool reads a yes/no setting from the environment; unset or anything else is false.
+func envBool(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }

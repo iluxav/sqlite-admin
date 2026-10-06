@@ -22,7 +22,7 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' 0
 trap 'exit 1' HUP INT TERM
 go build -mod=readonly -trimpath -buildvcs=false \
-  -ldflags "-s -w -X github.com/iluxav/sqlite-client/internal/cli.Version=$version" \
+  -ldflags "-s -w -X github.com/iluxav/sqlite-admin/internal/cli.Version=$version" \
   -o "$stage/sqliteadmin" ./cmd/sqliteadmin
 cp README.md "$stage/README.md"
 cp .env.example "$stage/sqliteadmin.env.example"

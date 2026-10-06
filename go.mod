@@ -1,9 +1,9 @@
-module github.com/iluxav/sqlite-client
+module github.com/iluxav/sqlite-admin
 
 go 1.26.0
 
 require (
-	github.com/iluxav/sqlite-client/sqliteadmin v0.0.0
+	github.com/iluxav/sqlite-admin/sqliteadmin v0.0.0
 	github.com/joho/godotenv v1.5.1
 	golang.org/x/sys v0.48.0
 	modernc.org/sqlite v1.60.1
@@ -20,4 +20,4 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-replace github.com/iluxav/sqlite-client/sqliteadmin => ./sqliteadmin
+replace github.com/iluxav/sqlite-admin/sqliteadmin => ./sqliteadmin

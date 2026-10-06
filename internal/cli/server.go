@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/iluxav/sqlite-client/sqliteadmin"
+	"github.com/iluxav/sqlite-admin/sqliteadmin"
 	_ "modernc.org/sqlite"
 )
 

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -125,12 +126,30 @@ func (l *loginLimiter) succeed(ip string) {
 	delete(l.m, ip)
 }
 
-func clientIP(r *http.Request) string {
+// clientIP keys the login limiter. Behind a reverse proxy every request arrives
+// from the proxy's address, so with BehindProxy the first X-Forwarded-For entry
+// is used instead; without it the header is ignored, since a direct client
+// could set it to anything.
+func (a *Admin) clientIP(r *http.Request) string {
+	if a.cfg.BehindProxy {
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			first, _, _ := strings.Cut(fwd, ",")
+			if ip := strings.TrimSpace(first); ip != "" {
+				return ip
+			}
+		}
+	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// secure says whether the browser reached the UI over HTTPS: directly, or
+// through a proxy that terminates TLS and says so in X-Forwarded-Proto.
+func (a *Admin) secure(r *http.Request) bool {
+	return r.TLS != nil || (a.cfg.BehindProxy && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https"))
 }
 
 // checkCredentials compares in constant time; hashing first hides lengths.
@@ -147,7 +166,7 @@ func (a *Admin) setSessionCookie(w http.ResponseWriter, r *http.Request, value s
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   a.secure(r),
 		SameSite: http.SameSiteStrictMode,
 	})
 }
@@ -208,7 +227,7 @@ func (a *Admin) loginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Admin) loginSubmit(w http.ResponseWriter, r *http.Request) {
-	ip := clientIP(r)
+	ip := a.clientIP(r)
 	if a.limiter.blocked(ip) {
 		a.renderLogin(w, http.StatusTooManyRequests, "Too many failed attempts. Try again in a few minutes.")
 		return

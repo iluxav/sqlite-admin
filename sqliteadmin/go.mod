@@ -1,3 +1,3 @@
-module github.com/iluxav/sqlite-client/sqliteadmin
+module github.com/iluxav/sqlite-admin/sqliteadmin
 
 go 1.22
