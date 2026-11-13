@@ -2,6 +2,8 @@
 
 A Go admin UI for browsing SQLite, staging edits, running SQL, and managing backups. Embed it as a library or run the standalone CLI. The HTML, HTMX, CSS, and fonts are compiled into the binary.
 
+What it can do today and what has changed: [osfeed.dev/p/iluxav/sqlite-admin](https://osfeed.dev/p/iluxav/sqlite-admin).
+
 ## Standalone CLI
 
 Install or update to the latest release:
